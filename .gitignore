@@ -6,3 +6,4 @@ __pycache__/
 .superpowers/
 dev.db
 .pytest_cache/
+.playwright-mcp/

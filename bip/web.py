@@ -7,6 +7,7 @@ from bip.relatorios import periodo
 from bip.servico import Servico
 
 DUPLICADO = "Já existe colaborador com esse nome"
+HOSTS_PERMITIDOS = {"127.0.0.1", "localhost"}
 
 
 def create_app(servico: Servico, repo: Repo, static_dir: str) -> Flask:
@@ -15,6 +16,15 @@ def create_app(servico: Servico, repo: Repo, static_dir: str) -> Flask:
 
     def erro(mensagem: str, status: int):
         return jsonify({"erro": mensagem}), status
+
+    @app.before_request
+    def proteger():
+        # Bloqueia DNS rebinding (Host de outro site) e CSRF: navegador só manda
+        # application/json para outra origem depois de preflight CORS, que esta API não aceita.
+        if request.host.rsplit(":", 1)[0] not in HOSTS_PERMITIDOS:
+            return erro("Host não permitido", 403)
+        if request.method in ("POST", "PATCH", "DELETE") and not request.is_json:
+            return erro("Envie application/json", 415)
 
     def estado() -> dict:
         return {"ativo": servico.ativo(), "calibracao": servico.calibracao(),

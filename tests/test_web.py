@@ -112,8 +112,8 @@ def test_mover_excluir_erro(ctx):
     assert cliente.patch(f"/api/registros/{rid}", json={"colaborador_id": bia["id"]}).json["colaborador_nome"] == "Bia"
     r = cliente.post(f"/api/registros/{rid}/erro", json={"obs": "x"}).json
     assert (r["erro"], r["erro_obs"]) == (True, "x")
-    assert cliente.delete(f"/api/registros/{rid}/erro").json["erro"] is False
-    assert cliente.delete(f"/api/registros/{rid}").status_code == 204
+    assert cliente.delete(f"/api/registros/{rid}/erro", json={}).json["erro"] is False
+    assert cliente.delete(f"/api/registros/{rid}", json={}).status_code == 204
     assert cliente.patch(f"/api/registros/{rid}", json={"colaborador_id": None}).status_code == 404
 
 
@@ -144,6 +144,20 @@ def test_relatorio_lista_sem(ctx):
 
 def test_calibracao(ctx):
     cliente, _, _ = ctx
-    r = cliente.post("/api/calibracao").json
+    r = cliente.post("/api/calibracao", json={}).json
     assert r["calibrando"] is True
     assert cliente.get("/api/estado").json["calibracao"]["calibrando"] is True
+
+
+def test_host_estranho_bloqueado(ctx):
+    cliente, _, _ = ctx
+    assert cliente.get("/api/estado", headers={"Host": "evil.example:8765"}).status_code == 403
+    assert cliente.get("/api/estado", headers={"Host": "127.0.0.1:8765"}).status_code == 200
+
+
+def test_alteracao_sem_json_bloqueada(ctx):
+    cliente, servico, _ = ctx
+    r = cliente.post("/api/calibracao", data="x", content_type="text/plain")
+    assert r.status_code == 415
+    assert servico.calibracao()["calibrando"] is False
+    assert cliente.post("/api/calibracao", json={}).status_code == 200

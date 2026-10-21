@@ -1,1 +1,82 @@
-<h1>Bip</h1>
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bip</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<nav class="abas" role="tablist">
+  <button role="tab" data-aba="bipar" aria-selected="true">Bipar</button>
+  <button role="tab" data-aba="pesquisar">Pesquisar</button>
+  <button role="tab" data-aba="relatorios">Relatórios</button>
+  <button role="tab" data-aba="colaboradores">Colaboradores</button>
+</nav>
+
+<div id="aviso" class="aviso" role="status" hidden></div>
+<button id="ativar-som" class="ativar-som" type="button">Ativar som</button>
+
+<main>
+  <section id="aba-bipar" class="aba">
+    <div id="painel" class="painel">
+      <div id="painel-nome" class="painel-nome">Sem colaborador</div>
+      <div id="painel-ultimo" class="painel-ultimo"></div>
+    </div>
+    <div id="botoes-colab" class="botoes-colab"></div>
+    <h2>Últimos bips</h2>
+    <ul id="ultimos" class="lista"></ul>
+  </section>
+
+  <section id="aba-pesquisar" class="aba" hidden>
+    <label class="campo">
+      <span>Rastreio (completo ou parte)</span>
+      <input id="busca" type="search" inputmode="numeric" autocomplete="off" placeholder="ex. 43964725">
+    </label>
+    <p id="busca-vazia" class="dica">Digite pelo menos 3 números para pesquisar.</p>
+    <ul id="resultados" class="lista"></ul>
+  </section>
+
+  <section id="aba-relatorios" class="aba" hidden>
+    <div class="periodos" role="group" aria-label="Período">
+      <button data-periodo="dia" aria-pressed="true">Hoje</button>
+      <button data-periodo="semana">Semana</button>
+      <button data-periodo="mes">Mês</button>
+    </div>
+    <table class="tabela">
+      <thead><tr><th>Colaborador</th><th>Pacotes</th><th>Erros</th><th>Taxa</th></tr></thead>
+      <tbody id="resumo"></tbody>
+    </table>
+    <p id="resumo-vazio" class="dica" hidden>Nenhum pacote bipado neste período.</p>
+    <h2 id="lista-titulo" hidden></h2>
+    <ul id="lista-pessoa" class="lista"></ul>
+  </section>
+
+  <section id="aba-colaboradores" class="aba" hidden>
+    <form id="form-colab" class="form-colab">
+      <input id="novo-nome" type="text" placeholder="Nome do colaborador" autocomplete="off" required>
+      <button type="submit">Adicionar</button>
+    </form>
+    <p id="colab-erro" class="erro" hidden></p>
+    <label class="check"><input id="mostrar-inativos" type="checkbox"> Mostrar desativados</label>
+    <ul id="colaboradores" class="lista"></ul>
+    <footer class="rodape">
+      <span id="limiar"></span>
+      <button id="recalibrar" type="button" class="secundario">Recalibrar leitor</button>
+    </footer>
+  </section>
+</main>
+
+<div id="calibracao" class="calibracao" hidden>
+  <div>
+    <p class="calibracao-titulo">Calibração do leitor</p>
+    <p>Bipe 3 pacotes no UpSeller, do jeito normal.</p>
+    <p id="calibracao-progresso" class="calibracao-progresso">0/3</p>
+    <p class="dica-clara">Esses pacotes também ficam registrados.</p>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
