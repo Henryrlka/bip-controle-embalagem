@@ -1,0 +1,8 @@
+.venv/
+build/
+dist/
+__pycache__/
+*.spec
+.superpowers/
+dev.db
+.pytest_cache/
