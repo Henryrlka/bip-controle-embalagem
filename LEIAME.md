@@ -37,6 +37,14 @@ Aba **Colaboradores**: adicionar, renomear, trocar a cor e desativar. Desativar 
 
 **Recalibrar leitor** (fim da aba Colaboradores): use se trocar o leitor ou se os bips pararem de aparecer. Clicou sem querer? Na tela de calibração tem **Cancelar e manter a calibração anterior**.
 
+## Avisos na tela
+
+- **Faixa vermelha "Bip desconectado"** (com 3 bipes graves): o programa caiu e os bips **não** estão sendo anotados. Dê dois cliques no `bip.exe`. Quando ele volta, aparece "O Bip foi reiniciado".
+- **Faixa vermelha "O leitor não está sendo escutado"**: feche e abra o `bip.exe` de novo.
+- **Aviso amarelo "Esse bip foi para a janela do Bip"**: a janela do Bip estava selecionada na hora do bip, então o UpSeller não recebeu. Clique no UpSeller e bipe de novo (o Bip vai mostrar "Já registrado", é normal).
+- **Aviso vermelho "Não foi possível …"**: a ação (mover, excluir, peça errada…) não foi feita. A lista é recarregada para mostrar como ficou de verdade.
+- Vários bips seguidos muito rápido: o aviso mostra o mais importante (repetido, depois sem colaborador) e quantos bips vieram junto.
+
 ## Bom saber
 
 - Os dados ficam só nesse PC, em `%LOCALAPPDATA%\Bip` (cole isso na barra do Explorador de Arquivos). **Não tem backup**: se essa pasta for apagada ou o PC formatado, o histórico se perde.

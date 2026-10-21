@@ -8,14 +8,21 @@
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<nav class="abas" role="tablist">
-  <button role="tab" data-aba="bipar" aria-selected="true">Bipar</button>
-  <button role="tab" data-aba="pesquisar">Pesquisar</button>
-  <button role="tab" data-aba="relatorios">Relatórios</button>
-  <button role="tab" data-aba="colaboradores">Colaboradores</button>
-</nav>
+<header id="topo" class="topo">
+  <div id="faixa-desconectado" class="faixa faixa-queda" role="alert" hidden>Bip desconectado: os bips NÃO estão sendo anotados. Abra o bip.exe de novo.</div>
+  <div id="faixa-escuta" class="faixa" role="alert" hidden>O leitor não está sendo escutado. Feche e abra o bip.exe de novo.</div>
+  <nav class="abas" role="tablist">
+    <button role="tab" data-aba="bipar" aria-selected="true">Bipar</button>
+    <button role="tab" data-aba="pesquisar">Pesquisar</button>
+    <button role="tab" data-aba="relatorios">Relatórios</button>
+    <button role="tab" data-aba="colaboradores">Colaboradores</button>
+  </nav>
+</header>
 
-<div id="aviso" class="aviso" role="status" hidden></div>
+<div id="avisos" class="avisos" popover="manual">
+  <div id="aviso" class="aviso" role="status" title="Clique para fechar" hidden></div>
+  <div id="mensagens" class="mensagens"></div>
+</div>
 <button id="ativar-som" class="ativar-som" type="button">Ativar som</button>
 
 <main>
@@ -58,7 +65,6 @@
       <input id="novo-nome" type="text" placeholder="Nome do colaborador" autocomplete="off" required>
       <button type="submit">Adicionar</button>
     </form>
-    <p id="colab-erro" class="erro" hidden></p>
     <label class="check"><input id="mostrar-inativos" type="checkbox"> Mostrar desativados</label>
     <ul id="colaboradores" class="lista"></ul>
     <footer class="rodape">
@@ -77,6 +83,18 @@
     <button id="cancelar-calibracao" type="button" class="cancelar">Cancelar e manter a calibração anterior</button>
   </div>
 </div>
+
+<dialog id="dialogo" class="dialogo" aria-labelledby="dialogo-titulo">
+  <form method="dialog">
+    <p id="dialogo-titulo" class="dialogo-titulo"></p>
+    <p id="dialogo-texto" class="dialogo-texto"></p>
+    <input id="dialogo-campo" type="text" autocomplete="off" aria-labelledby="dialogo-texto">
+    <div class="dialogo-botoes">
+      <button id="dialogo-cancelar" type="button">Cancelar</button>
+      <button id="dialogo-ok" type="submit" value="ok" class="confirmar">OK</button>
+    </div>
+  </form>
+</dialog>
 
 <script src="/static/app.js"></script>
 </body>
