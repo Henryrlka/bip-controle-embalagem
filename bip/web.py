@@ -1,5 +1,7 @@
 """API JSON e página estática da interface."""
 
+from collections.abc import Callable
+
 from flask import Flask, jsonify, request, send_from_directory
 
 from bip.db import NomeDuplicado, Repo
@@ -10,7 +12,8 @@ DUPLICADO = "Já existe colaborador com esse nome"
 HOSTS_PERMITIDOS = {"127.0.0.1", "localhost"}
 
 
-def create_app(servico: Servico, repo: Repo, static_dir: str) -> Flask:
+def create_app(servico: Servico, repo: Repo, static_dir: str,
+               escuta_ativa: Callable[[], bool] = lambda: True) -> Flask:
     app = Flask(__name__, static_folder=static_dir, static_url_path="/static")
     app.json.ensure_ascii = False
 
@@ -28,7 +31,8 @@ def create_app(servico: Servico, repo: Repo, static_dir: str) -> Flask:
 
     def estado() -> dict:
         return {"ativo": servico.ativo(), "calibracao": servico.calibracao(),
-                "ultimo_evento_id": servico.ultimo_evento_id()}
+                "ultimo_evento_id": servico.ultimo_evento_id(), "sessao": servico.sessao,
+                "escuta_ativa": bool(escuta_ativa())}
 
     def intervalo():
         return periodo(request.args.get("periodo", "dia"), servico.hoje())

@@ -170,3 +170,24 @@ def test_cancelar_calibracao(ctx):
     assert r.status_code == 200
     assert r.json["calibrando"] is False
     assert servico.limiar_ms() == 50
+
+
+def test_estado_tem_sessao_e_escuta(ctx):
+    cliente, _, _ = ctx
+    e = cliente.get("/api/estado").json
+    assert isinstance(e["sessao"], str) and len(e["sessao"]) >= 8
+    assert e["escuta_ativa"] is True
+    assert cliente.get("/api/estado").json["sessao"] == e["sessao"]
+
+
+def test_sessao_muda_entre_inicios():
+    repo = Repo(":memory:")
+    a = create_app(Servico(repo), repo, STATIC).test_client().get("/api/estado").json["sessao"]
+    b = create_app(Servico(repo), repo, STATIC).test_client().get("/api/estado").json["sessao"]
+    assert a != b
+
+
+def test_escuta_parada():
+    repo = Repo(":memory:")
+    app = create_app(Servico(repo), repo, STATIC, escuta_ativa=lambda: False)
+    assert app.test_client().get("/api/estado").json["escuta_ativa"] is False

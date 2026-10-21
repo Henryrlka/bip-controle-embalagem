@@ -1,5 +1,6 @@
 """Regras do bip: colaborador ativo, gravação, eventos para a tela e calibração do leitor."""
 
+import secrets
 import threading
 from collections import deque
 from collections.abc import Callable
@@ -19,6 +20,8 @@ MAX_EVENTOS = 200
 class Servico:
     def __init__(self, repo: Repo, relogio: Callable[[], datetime] = datetime.now):
         self._repo = repo
+        # Muda a cada início do programa: a tela percebe que ele caiu e voltou.
+        self.sessao = secrets.token_hex(8)
         self._relogio = relogio
         self._lock = threading.Lock()
         self._eventos: deque[dict] = deque(maxlen=MAX_EVENTOS)
