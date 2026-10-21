@@ -6,6 +6,7 @@ from datetime import datetime
 
 CORES = ["#2563EB", "#16A34A", "#EA580C", "#9333EA", "#DB2777", "#0891B2", "#CA8A04", "#92400E"]
 SONS = [440, 554, 659, 784, 880, 988, 1175, 1319]
+SEM_COLABORADOR_COR = "#DC2626"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS colaboradores (
@@ -152,6 +153,40 @@ class Repo:
 
     def ultimos(self, n: int = 20) -> list[dict]:
         return [_registro(r) for r in self._q(SELECT_REGISTRO + "ORDER BY r.id DESC LIMIT ?", (n,))]
+
+    # Relatórios
+
+    def resumo(self, inicio: datetime, fim: datetime) -> list[dict]:
+        rows = self._q(
+            """SELECT r.colaborador_id, c.nome, c.cor, COUNT(*) AS pacotes, SUM(r.erro) AS erros
+               FROM registros r LEFT JOIN colaboradores c ON c.id = r.colaborador_id
+               WHERE r.bipado_em >= ? AND r.bipado_em < ?
+               GROUP BY r.colaborador_id ORDER BY pacotes DESC, c.nome""",
+            (inicio.isoformat(timespec="seconds"), fim.isoformat(timespec="seconds")))
+        linhas = []
+        for r in rows:
+            sem = r["colaborador_id"] is None
+            linhas.append({
+                "colaborador_id": r["colaborador_id"],
+                "nome": "Sem colaborador" if sem else r["nome"],
+                "cor": SEM_COLABORADOR_COR if sem else r["cor"],
+                "pacotes": r["pacotes"],
+                "erros": r["erros"],
+                "taxa": r["erros"] / r["pacotes"] if r["pacotes"] else 0.0,
+            })
+        return linhas
+
+    def listar_registros(self, inicio: datetime, fim: datetime, colaborador_id: int | None = None,
+                         sem_colaborador: bool = False) -> list[dict]:
+        sql = SELECT_REGISTRO + "WHERE r.bipado_em >= ? AND r.bipado_em < ?"
+        params: list = [inicio.isoformat(timespec="seconds"), fim.isoformat(timespec="seconds")]
+        if sem_colaborador:
+            sql += " AND r.colaborador_id IS NULL"
+        elif colaborador_id is not None:
+            sql += " AND r.colaborador_id = ?"
+            params.append(colaborador_id)
+        sql += " ORDER BY r.bipado_em DESC, r.id DESC"
+        return [_registro(r) for r in self._q(sql, params)]
 
     # Configuração
 
