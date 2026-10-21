@@ -109,8 +109,8 @@ def test_calibracao():
     assert s.calibracao()["amostras"] == 1
     bip(s, "100000000000002", 12)
     bip(s, "100000000000003", 10)
-    assert s.limiar_ms() == 25
-    assert s.calibracao() == {"calibrando": False, "amostras": 0, "total": 3, "limiar_ms": 25.0}
+    assert s.limiar_ms() == 50
+    assert s.calibracao() == {"calibrando": False, "amostras": 0, "total": 3, "limiar_ms": 50.0}
     assert not s.precisa_calibrar()
     assert len(repo.ultimos()) == 3
 
@@ -141,3 +141,23 @@ def test_eventos_desde():
 def test_hoje():
     _, s = novo_servico()
     assert s.hoje() == AGORA.date()
+
+
+def test_cancelar_calibracao_mantem_limiar():
+    repo, s = novo_servico()
+    repo.set_config("limiar_ms", "66")
+    _, s = novo_servico(repo, calibrado=False)
+    s.iniciar_calibracao()
+    bip(s, "100000000000001", 30)
+    s.cancelar_calibracao()
+    assert s.calibracao()["calibrando"] is False
+    assert s.calibracao()["amostras"] == 0
+    assert s.limiar_ms() == 66
+
+
+def test_limiar_reflete_calibracao_nova():
+    _, s = novo_servico()
+    s.iniciar_calibracao()
+    for i, ms in enumerate([30, 35, 32]):
+        bip(s, f"10000000000000{i}", ms)
+    assert s.limiar_ms() == 70

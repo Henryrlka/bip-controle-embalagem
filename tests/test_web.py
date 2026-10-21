@@ -161,3 +161,12 @@ def test_alteracao_sem_json_bloqueada(ctx):
     assert r.status_code == 415
     assert servico.calibracao()["calibrando"] is False
     assert cliente.post("/api/calibracao", json={}).status_code == 200
+
+
+def test_cancelar_calibracao(ctx):
+    cliente, servico, _ = ctx
+    cliente.post("/api/calibracao", json={})
+    r = cliente.post("/api/calibracao/cancelar", json={})
+    assert r.status_code == 200
+    assert r.json["calibrando"] is False
+    assert servico.limiar_ms() == 50

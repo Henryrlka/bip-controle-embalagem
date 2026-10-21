@@ -10,7 +10,7 @@ O Bip roda no PC onde o gerente bipa os pacotes no UpSeller. Cada vez que um pac
    - Na tela azul "O Windows protegeu o computador", clique em **Mais informações** e depois em **Executar assim mesmo**.
    - Se o antivírus apagar ou bloquear o arquivo, abra **Segurança do Windows > Proteção contra vírus e ameaças > Gerenciar configurações > Exclusões > Adicionar ou remover exclusões > Adicionar uma exclusão > Pasta** e escolha `C:\Bip`. Depois copie o `bip.exe` de novo.
 4. **Calibração**: na primeira vez aparece a tela "Calibração do leitor". Bipe 3 pacotes no UpSeller, normalmente. Esses pacotes ficam registrados como "Sem colaborador"; depois é só mover para a pessoa certa.
-5. Clique em **Ativar som** (canto de baixo). O navegador só toca som depois de um clique.
+5. O som liga no primeiro clique na janela (por exemplo, ao escolher o colaborador). O navegador não deixa tocar som antes disso.
 
 A partir daí o Bip abre sozinho quando o PC liga.
 
@@ -35,7 +35,7 @@ Aba **Relatórios**: escolha Hoje, Semana (segunda a domingo) ou Mês. Mostra pa
 
 Aba **Colaboradores**: adicionar, renomear, trocar a cor e desativar. Desativar tira o botão da tela mas mantém o histórico da pessoa. Marque "Mostrar desativados" para reativar.
 
-**Recalibrar leitor** (fim da aba Colaboradores): use se trocar o leitor ou se os bips pararem de aparecer.
+**Recalibrar leitor** (fim da aba Colaboradores): use se trocar o leitor ou se os bips pararem de aparecer. Clicou sem querer? Na tela de calibração tem **Cancelar e manter a calibração anterior**.
 
 ## Bom saber
 

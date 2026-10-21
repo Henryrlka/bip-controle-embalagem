@@ -147,4 +147,9 @@ def create_app(servico: Servico, repo: Repo, static_dir: str) -> Flask:
         servico.iniciar_calibracao()
         return jsonify(servico.calibracao())
 
+    @app.post("/api/calibracao/cancelar")
+    def post_cancelar_calibracao():
+        servico.cancelar_calibracao()
+        return jsonify(servico.calibracao())
+
     return app

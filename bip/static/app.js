@@ -76,11 +76,16 @@ function somDoEvento(ev) {
   tocar(c ? c.som_hz : 440);
 }
 
-$("ativar-som").addEventListener("click", () => {
+// O navegador só libera som depois de um clique: o primeiro clique em qualquer
+// lugar (normalmente no botão do colaborador) já ativa.
+function ativarSom() {
+  if (estado.audio) return;
   estado.audio = new AudioContext();
   $("ativar-som").hidden = true;
-  tocar(660);
-});
+}
+
+document.addEventListener("pointerdown", ativarSom, { capture: true });
+$("ativar-som").addEventListener("click", () => tocar(660));
 
 // Abas
 
@@ -140,22 +145,35 @@ function linhaRegistro(r, aoMudar) {
 
 // Bipar
 
+// Botões só são recriados quando a lista de colaboradores muda. Recriar a cada
+// atualização engole cliques (mousedown num botão, mouseup no substituto).
+let chaveBotoes = "";
+
 function desenharPainel() {
   const a = estado.ativo;
   $("painel").style.setProperty("--cor", a ? a.cor : SEM_COR);
   $("painel-nome").textContent = a ? a.nome : "Sem colaborador";
-  const botoes = estado.colaboradores.map((c) => el("button", {
-    type: "button", style: `--cor:${c.cor}`, "aria-pressed": String(a !== null && a.id === c.id),
-    onclick: () => definirAtivo(c.id),
-  }, c.nome));
-  botoes.push(el("button", {
-    type: "button", style: `--cor:${SEM_COR}`, "aria-pressed": String(a === null),
-    onclick: () => definirAtivo(null),
-  }, "Sem colaborador"));
-  $("botoes-colab").replaceChildren(...botoes);
+  const chave = JSON.stringify(estado.colaboradores.map((c) => [c.id, c.nome, c.cor]));
+  if (chave !== chaveBotoes) {
+    chaveBotoes = chave;
+    const botoes = estado.colaboradores.map((c) => el("button", {
+      type: "button", style: `--cor:${c.cor}`, "data-id": String(c.id), onclick: () => definirAtivo(c.id),
+    }, c.nome));
+    botoes.push(el("button", {
+      type: "button", style: `--cor:${SEM_COR}`, "data-id": "", onclick: () => definirAtivo(null),
+    }, "Sem colaborador"));
+    $("botoes-colab").replaceChildren(...botoes);
+  }
+  const idAtivo = a ? String(a.id) : "";
+  for (const b of $("botoes-colab").children) b.setAttribute("aria-pressed", String(b.dataset.id === idAtivo));
 }
 
+// Conta trocas de colaborador: resposta de /api/estado que saiu antes de uma troca
+// chega atrasada com o colaborador antigo e não pode desfazer a troca na tela.
+let trocas = 0;
+
 async function definirAtivo(id) {
+  trocas++;
   const resp = await api("POST", "/api/ativo", { colaborador_id: id });
   estado.ativo = resp.ativo;
   desenharPainel();
@@ -298,6 +316,11 @@ $("recalibrar").addEventListener("click", async () => {
   await atualizarEstado();
 });
 
+$("cancelar-calibracao").addEventListener("click", async () => {
+  await api("POST", "/api/calibracao/cancelar");
+  await atualizarEstado();
+});
+
 // Estado e polling
 
 function desenharCalibracao(c) {
@@ -306,8 +329,9 @@ function desenharCalibracao(c) {
 }
 
 async function atualizarEstado() {
+  const trocasAntes = trocas;
   const e = await api("GET", "/api/estado");
-  estado.ativo = e.ativo;
+  if (trocas === trocasAntes) estado.ativo = e.ativo;
   desenharCalibracao(e.calibracao);
   desenharPainel();
   return e;

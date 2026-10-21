@@ -328,6 +328,13 @@ button.secundario { background: transparent; }
 .calibracao-progresso { font: 700 96px/1 var(--display); font-variant-numeric: tabular-nums; margin: 24px 0; }
 .dica-clara { color: #B9BFCA; }
 
+.calibracao .cancelar {
+  margin-top: 32px;
+  background: transparent;
+  color: #FFFFFF;
+  border-color: #5B6270;
+}
+
 [hidden] { display: none !important; }
 
 @media (prefers-reduced-motion: reduce) {

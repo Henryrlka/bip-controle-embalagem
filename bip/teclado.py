@@ -44,9 +44,10 @@ def iniciar_escuta(servico: Servico) -> keyboard.Listener:
     detector = ScanDetector(servico.limiar_ms())
 
     def on_press(key) -> None:
+        t_ms = time.perf_counter() * 1000  # antes de tudo: atraso aqui vira intervalo falso
         try:
             detector.limiar_ms = servico.limiar_ms()
-            scan = detector.alimentar(token_de(key), time.perf_counter() * 1000)
+            scan = detector.alimentar(token_de(key), t_ms)
             if scan is not None:
                 log.info("bip %s", servico.processar_scan(scan)["tipo"])
         except Exception:

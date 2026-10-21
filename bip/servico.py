@@ -11,7 +11,7 @@ from bip.detector import Scan
 LIMIAR_PADRAO_MS = 50.0
 LIMIAR_CALIBRACAO_MS = 300.0
 AMOSTRAS_CALIBRACAO = 3
-LIMIAR_MIN_MS = 25
+LIMIAR_MIN_MS = 50
 LIMIAR_MAX_MS = 80
 MAX_EVENTOS = 200
 
@@ -25,6 +25,8 @@ class Servico:
         self._ultimo_id = 0
         self._amostras: list[float] = []
         self._calibrando = self.precisa_calibrar()
+        # Em memória: limiar_ms() é lido a cada tecla, sem ir ao SQLite.
+        self._limiar = float(repo.get_config("limiar_ms", str(LIMIAR_PADRAO_MS)))
         repo.del_config("colaborador_ativo")
 
     # Colaborador ativo
@@ -60,16 +62,20 @@ class Servico:
     def limiar_ms(self) -> float:
         if self._calibrando:
             return LIMIAR_CALIBRACAO_MS
-        return float(self._repo.get_config("limiar_ms", str(LIMIAR_PADRAO_MS)))
+        return self._limiar
 
     def iniciar_calibracao(self) -> None:
         with self._lock:
             self._amostras = []
             self._calibrando = True
 
+    def cancelar_calibracao(self) -> None:
+        with self._lock:
+            self._amostras = []
+            self._calibrando = False
+
     def calibracao(self) -> dict:
-        calibrando = self._calibrando
-        return {"calibrando": calibrando, "amostras": len(self._amostras), "total": AMOSTRAS_CALIBRACAO,
+        return {"calibrando": self._calibrando, "amostras": len(self._amostras), "total": AMOSTRAS_CALIBRACAO,
                 "limiar_ms": self.limiar_ms()}
 
     def _amostra(self, intervalo_ms: float) -> None:
@@ -77,6 +83,7 @@ class Servico:
         if len(self._amostras) >= AMOSTRAS_CALIBRACAO:
             limiar = min(max(round(max(self._amostras) * 2), LIMIAR_MIN_MS), LIMIAR_MAX_MS)
             self._repo.set_config("limiar_ms", str(limiar))
+            self._limiar = float(limiar)
             self._amostras = []
             self._calibrando = False
 
