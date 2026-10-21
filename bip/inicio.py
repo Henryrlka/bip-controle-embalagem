@@ -52,9 +52,16 @@ def _navegadores() -> list[Path]:
 
 
 def abrir_janela(url: str) -> None:
+    # Roda num Timer sem console: exceção solta aqui some sem deixar rastro, então só registra.
     for exe in _navegadores():
         if exe.is_file():
-            subprocess.Popen([str(exe), f"--app={url}", "--window-size=480,900"])
-            return
-    log.warning("Chrome/Edge não encontrado, abrindo navegador padrão")
-    webbrowser.open(url)
+            try:
+                subprocess.Popen([str(exe), f"--app={url}", "--window-size=480,900"])
+                return
+            except Exception:
+                log.exception("Falha ao abrir %s", exe)
+    log.warning("Chrome/Edge não encontrado ou falhou, abrindo navegador padrão")
+    try:
+        webbrowser.open(url)
+    except Exception:
+        log.exception("Falha ao abrir o navegador padrão")

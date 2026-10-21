@@ -35,24 +35,27 @@ class Servico:
     # Colaborador ativo
 
     def ativo(self) -> dict | None:
+        # Sem lock: processar_scan chama daqui já segurando o lock (que não é reentrante).
         valor = self._repo.get_config("colaborador_ativo")
         return self._repo.obter_colaborador(int(valor)) if valor else None
 
     def definir_ativo(self, colaborador_id: int | None) -> None:
-        if colaborador_id is None:
-            self._repo.del_config("colaborador_ativo")
-            return
-        colaborador = self._repo.obter_colaborador(colaborador_id)
-        if colaborador is None or not colaborador["ativo"]:
-            raise ValueError("Colaborador inexistente ou inativo")
-        self._repo.set_config("colaborador_ativo", str(colaborador_id))
+        with self._lock:
+            if colaborador_id is None:
+                self._repo.del_config("colaborador_ativo")
+                return
+            colaborador = self._repo.obter_colaborador(colaborador_id)
+            if colaborador is None or not colaborador["ativo"]:
+                raise ValueError("Colaborador inexistente ou inativo")
+            self._repo.set_config("colaborador_ativo", str(colaborador_id))
 
     def desativar_colaborador(self, id: int) -> dict:
-        colaborador = self._repo.atualizar_colaborador(id, ativo=False)
-        ativo = self.ativo()
-        if ativo and ativo["id"] == id:
-            self.definir_ativo(None)
-        return colaborador
+        with self._lock:
+            colaborador = self._repo.atualizar_colaborador(id, ativo=False)
+            ativo = self.ativo()
+            if ativo and ativo["id"] == id:
+                self._repo.del_config("colaborador_ativo")
+            return colaborador
 
     def hoje(self) -> date:
         return self._relogio().date()
@@ -97,6 +100,8 @@ class Servico:
             if self._calibrando:
                 self._amostra(scan.max_intervalo_ms)
             ativo = self.ativo()
+            if ativo and not ativo["ativo"]:
+                ativo = None
             criado, registro = self._repo.registrar(scan.codigo, ativo["id"] if ativo else None, self._relogio())
             nome = registro["colaborador_nome"] or "Sem colaborador"
             if not criado:

@@ -1,15 +1,56 @@
 """API JSON e página estática da interface."""
 
+import logging
+import re
 from collections.abc import Callable
 
 from flask import Flask, jsonify, request, send_from_directory
+from werkzeug.exceptions import HTTPException, MethodNotAllowed
 
-from bip.db import NomeDuplicado, Repo
+from bip.db import MAX_ID, NomeDuplicado, Repo
 from bip.relatorios import periodo
 from bip.servico import Servico
 
+log = logging.getLogger(__name__)
+
 DUPLICADO = "Já existe colaborador com esse nome"
 HOSTS_PERMITIDOS = {"127.0.0.1", "localhost"}
+COR = re.compile(r"#[0-9A-Fa-f]{6}")
+MAX_OBS = 500
+MENSAGENS_HTTP = {404: "Rota não encontrada", 405: "Método não permitido", 500: "Erro interno do Bip"}
+
+
+class EntradaInvalida(Exception):
+    pass
+
+
+def _corpo_valido() -> bool:
+    return isinstance(request.get_json(silent=True), dict) or not request.get_data()
+
+
+def _corpo() -> dict:
+    # proteger() já garantiu: corpo vazio ou objeto JSON.
+    return request.get_json(silent=True) or {}
+
+
+def _texto(valor, mensagem: str) -> str | None:
+    if valor is None or isinstance(valor, str):
+        return valor
+    raise EntradaInvalida(mensagem)
+
+
+def _id(valor) -> int | None:
+    # type() e não isinstance(): True/False são int para o Python.
+    if valor is None or (type(valor) is int and abs(valor) <= MAX_ID):
+        return valor
+    raise EntradaInvalida("colaborador_id inválido")
+
+
+def _id_de_texto(valor: str) -> int:
+    try:
+        return _id(int(valor))
+    except ValueError:
+        raise EntradaInvalida("colaborador_id inválido") from None
 
 
 def create_app(servico: Servico, repo: Repo, static_dir: str,
@@ -20,6 +61,24 @@ def create_app(servico: Servico, repo: Repo, static_dir: str,
     def erro(mensagem: str, status: int):
         return jsonify({"erro": mensagem}), status
 
+    # A tela sempre espera JSON, inclusive nos erros.
+
+    @app.errorhandler(EntradaInvalida)
+    def entrada_invalida(e: EntradaInvalida):
+        return erro(str(e), 400)
+
+    @app.errorhandler(HTTPException)
+    def erro_http(e: HTTPException):
+        resposta, status = erro(MENSAGENS_HTTP.get(e.code, "Requisição inválida"), e.code)
+        if isinstance(e, MethodNotAllowed) and e.valid_methods:
+            resposta.headers["Allow"] = ", ".join(e.valid_methods)
+        return resposta, status
+
+    @app.errorhandler(Exception)
+    def erro_interno(e: Exception):
+        log.exception("Erro em %s %s", request.method, request.path)
+        return erro("Erro interno do Bip", 500)
+
     @app.before_request
     def proteger():
         # Bloqueia DNS rebinding (Host de outro site) e CSRF: navegador só manda
@@ -28,6 +87,8 @@ def create_app(servico: Servico, repo: Repo, static_dir: str,
             return erro("Host não permitido", 403)
         if request.method in ("POST", "PATCH", "DELETE") and not request.is_json:
             return erro("Envie application/json", 415)
+        if request.method in ("POST", "PATCH") and not _corpo_valido():
+            return erro("JSON inválido", 400)
 
     def estado() -> dict:
         return {"ativo": servico.ativo(), "calibracao": servico.calibracao(),
@@ -47,8 +108,9 @@ def create_app(servico: Servico, repo: Repo, static_dir: str,
 
     @app.post("/api/ativo")
     def post_ativo():
+        colaborador_id = _id(_corpo().get("colaborador_id"))
         try:
-            servico.definir_ativo((request.get_json(silent=True) or {}).get("colaborador_id"))
+            servico.definir_ativo(colaborador_id)
         except ValueError:
             return erro("Colaborador inexistente ou inativo", 400)
         return jsonify(estado())
@@ -63,7 +125,7 @@ def create_app(servico: Servico, repo: Repo, static_dir: str,
 
     @app.post("/api/colaboradores")
     def post_colaborador():
-        nome = (request.get_json(silent=True) or {}).get("nome") or ""
+        nome = _texto(_corpo().get("nome"), "Nome inválido") or ""
         try:
             return jsonify(repo.criar_colaborador(nome)), 201
         except NomeDuplicado:
@@ -75,16 +137,24 @@ def create_app(servico: Servico, repo: Repo, static_dir: str,
     def patch_colaborador(id: int):
         if repo.obter_colaborador(id) is None:
             return erro("Colaborador não encontrado", 404)
-        dados = request.get_json(silent=True) or {}
+        dados = _corpo()
+        # Valida tudo antes de gravar qualquer coisa.
+        nome = _texto(dados.get("nome"), "Nome inválido")
+        cor = dados.get("cor")
+        if cor is not None and not (isinstance(cor, str) and COR.fullmatch(cor)):
+            return erro("Cor inválida", 400)
+        ativo = dados.get("ativo")
+        if ativo is not None and not isinstance(ativo, bool):
+            return erro("ativo inválido", 400)
         try:
-            repo.atualizar_colaborador(id, nome=dados.get("nome"), cor=dados.get("cor"))
+            repo.atualizar_colaborador(id, nome=nome, cor=cor)
         except NomeDuplicado:
             return erro(DUPLICADO, 409)
         except ValueError:
             return erro("Nome vazio", 400)
-        if dados.get("ativo") is False:
+        if ativo is False:
             servico.desativar_colaborador(id)
-        elif dados.get("ativo") is True:
+        elif ativo is True:
             repo.atualizar_colaborador(id, ativo=True)
         return jsonify(repo.obter_colaborador(id))
 
@@ -101,7 +171,7 @@ def create_app(servico: Servico, repo: Repo, static_dir: str,
     def patch_registro(id: int):
         if repo.obter_registro(id) is None:
             return erro("Registro não encontrado", 404)
-        colaborador_id = (request.get_json(silent=True) or {}).get("colaborador_id")
+        colaborador_id = _id(_corpo().get("colaborador_id"))
         if colaborador_id is not None and repo.obter_colaborador(colaborador_id) is None:
             return erro("Colaborador não encontrado", 400)
         return jsonify(repo.mover(id, colaborador_id))
@@ -117,7 +187,9 @@ def create_app(servico: Servico, repo: Repo, static_dir: str,
     def post_erro(id: int):
         if repo.obter_registro(id) is None:
             return erro("Registro não encontrado", 404)
-        obs = ((request.get_json(silent=True) or {}).get("obs") or "").strip()
+        obs = (_texto(_corpo().get("obs"), "Observação inválida") or "").strip()
+        if len(obs) > MAX_OBS:
+            return erro(f"Observação muito longa (máximo {MAX_OBS} caracteres)", 400)
         return jsonify(repo.marcar_erro(id, obs or None))
 
     @app.delete("/api/registros/<int:id>/erro")
@@ -143,7 +215,7 @@ def create_app(servico: Servico, repo: Repo, static_dir: str,
         if alvo == "sem":
             return jsonify(repo.listar_registros(inicio, fim, sem_colaborador=True))
         if alvo:
-            return jsonify(repo.listar_registros(inicio, fim, colaborador_id=int(alvo)))
+            return jsonify(repo.listar_registros(inicio, fim, colaborador_id=_id_de_texto(alvo)))
         return jsonify(repo.listar_registros(inicio, fim))
 
     @app.post("/api/calibracao")

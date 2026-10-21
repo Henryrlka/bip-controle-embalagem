@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from pathlib import Path
 
@@ -191,3 +192,183 @@ def test_escuta_parada():
     repo = Repo(":memory:")
     app = create_app(Servico(repo), repo, STATIC, escuta_ativa=lambda: False)
     assert app.test_client().get("/api/estado").json["escuta_ativa"] is False
+
+
+# Entrada malformada: sempre 400 com {"erro": ...}, nunca 500.
+
+def resposta(r):
+    return r.status_code, r.json
+
+
+ROTAS_COM_CORPO = [
+    ("POST", "/api/ativo"),
+    ("POST", "/api/colaboradores"),
+    ("PATCH", "/api/colaboradores/{c}"),
+    ("PATCH", "/api/registros/{r}"),
+    ("POST", "/api/registros/{r}/erro"),
+    ("POST", "/api/calibracao"),
+    ("POST", "/api/calibracao/cancelar"),
+]
+
+
+@pytest.mark.parametrize("metodo,rota", ROTAS_COM_CORPO)
+def test_json_que_nao_e_objeto_400(ctx, metodo, rota):
+    cliente, servico, repo = ctx
+    url = rota.format(c=repo.criar_colaborador("Ana")["id"], r=bip(servico)["registro"]["id"])
+    for corpo in ["[]", '"x"', "5", "null", "{"]:
+        r = cliente.open(url, method=metodo, data=corpo, content_type="application/json")
+        assert resposta(r) == (400, {"erro": "JSON inválido"}), corpo
+
+
+def test_corpo_json_vazio_aceito(ctx):
+    cliente, _, _ = ctx
+    assert cliente.post("/api/calibracao", data="", content_type="application/json").status_code == 200
+
+
+def test_relatorio_lista_colaborador_id_invalido(ctx):
+    cliente, _, _ = ctx
+    for valor in ["abc", "1.5", "99999999999999999999"]:
+        r = cliente.get(f"/api/relatorio/lista?periodo=dia&colaborador_id={valor}")
+        assert resposta(r) == (400, {"erro": "colaborador_id inválido"}), valor
+
+
+@pytest.mark.parametrize("nome", [5, ["Ana"], True, {"nome": "Ana"}])
+def test_criar_nome_nao_texto_400(ctx, nome):
+    cliente, _, _ = ctx
+    assert resposta(cliente.post("/api/colaboradores", json={"nome": nome})) == (400, {"erro": "Nome inválido"})
+    assert cliente.get("/api/colaboradores").json == []
+
+
+@pytest.mark.parametrize("corpo", [{}, {"nome": None}, {"nome": ""}, {"nome": "  "}])
+def test_criar_sem_nome_400(ctx, corpo):
+    cliente, _, _ = ctx
+    assert resposta(cliente.post("/api/colaboradores", json=corpo)) == (400, {"erro": "Nome vazio"})
+
+
+@pytest.mark.parametrize("corpo,mensagem", [
+    ({"nome": 5}, "Nome inválido"),
+    ({"nome": ["Bia"]}, "Nome inválido"),
+    ({"nome": " "}, "Nome vazio"),
+    ({"cor": "red"}, "Cor inválida"),
+    ({"cor": "#12345"}, "Cor inválida"),
+    ({"cor": "#1234567"}, "Cor inválida"),
+    ({"cor": "#GGGGGG"}, "Cor inválida"),
+    ({"cor": "#123456\n"}, "Cor inválida"),
+    ({"cor": 123456}, "Cor inválida"),
+    ({"ativo": "false"}, "ativo inválido"),
+    ({"ativo": 0}, "ativo inválido"),
+    ({"nome": "Bia", "ativo": 1}, "ativo inválido"),
+    ({"nome": "Bia", "cor": "x"}, "Cor inválida"),
+])
+def test_editar_colaborador_invalido_400_sem_mudar_nada(ctx, corpo, mensagem):
+    cliente, _, repo = ctx
+    ana = repo.criar_colaborador("Ana")
+    assert resposta(cliente.patch(f"/api/colaboradores/{ana['id']}", json=corpo)) == (400, {"erro": mensagem})
+    assert repo.obter_colaborador(ana["id"]) == ana
+
+
+def test_editar_cor_valida(ctx):
+    cliente, _, repo = ctx
+    ana = repo.criar_colaborador("Ana")
+    r = cliente.patch(f"/api/colaboradores/{ana['id']}", json={"cor": "#a1B2c3"})
+    assert r.status_code == 200
+    assert r.json["cor"] == "#a1B2c3"
+
+
+IDS_INVALIDOS = [True, False, "1", [1], 1.0, 1.5, {"id": 1}, 10**30]
+
+
+@pytest.mark.parametrize("valor", IDS_INVALIDOS)
+def test_ativo_colaborador_id_invalido_400(ctx, valor):
+    cliente, servico, repo = ctx
+    ana = repo.criar_colaborador("Ana")
+    servico.definir_ativo(ana["id"])
+    r = cliente.post("/api/ativo", json={"colaborador_id": valor})
+    assert resposta(r) == (400, {"erro": "colaborador_id inválido"})
+    assert servico.ativo()["id"] == ana["id"]
+
+
+@pytest.mark.parametrize("valor", IDS_INVALIDOS)
+def test_mover_colaborador_id_invalido_400(ctx, valor):
+    cliente, servico, repo = ctx
+    ana = repo.criar_colaborador("Ana")
+    servico.definir_ativo(ana["id"])
+    rid = bip(servico)["registro"]["id"]
+    r = cliente.patch(f"/api/registros/{rid}", json={"colaborador_id": valor})
+    assert resposta(r) == (400, {"erro": "colaborador_id inválido"})
+    assert repo.obter_registro(rid)["colaborador_id"] == ana["id"]
+
+
+@pytest.mark.parametrize("obs", [5, ["x"], True, {"obs": "x"}])
+def test_erro_obs_nao_texto_400(ctx, obs):
+    cliente, servico, repo = ctx
+    rid = bip(servico)["registro"]["id"]
+    r = cliente.post(f"/api/registros/{rid}/erro", json={"obs": obs})
+    assert resposta(r) == (400, {"erro": "Observação inválida"})
+    assert repo.obter_registro(rid)["erro"] is False
+
+
+def test_erro_obs_muito_longa_400(ctx):
+    cliente, servico, repo = ctx
+    rid = bip(servico)["registro"]["id"]
+    r = cliente.post(f"/api/registros/{rid}/erro", json={"obs": "x" * 501})
+    assert resposta(r) == (400, {"erro": "Observação muito longa (máximo 500 caracteres)"})
+    assert repo.obter_registro(rid)["erro"] is False
+    r = cliente.post(f"/api/registros/{rid}/erro", json={"obs": "  " + "x" * 500 + "  "})
+    assert r.status_code == 200
+    assert r.json["erro_obs"] == "x" * 500
+
+
+@pytest.mark.parametrize("corpo", [{}, {"obs": None}, {"obs": "  "}])
+def test_erro_sem_obs(ctx, corpo):
+    cliente, servico, _ = ctx
+    rid = bip(servico)["registro"]["id"]
+    r = cliente.post(f"/api/registros/{rid}/erro", json=corpo)
+    assert (r.status_code, r.json["erro"], r.json["erro_obs"]) == (200, True, None)
+
+
+# Erros sempre em JSON
+
+def test_rota_api_desconhecida_404_json(ctx):
+    cliente, _, _ = ctx
+    assert resposta(cliente.get("/api/nada")) == (404, {"erro": "Rota não encontrada"})
+    assert resposta(cliente.post("/api/nada", json={})) == (404, {"erro": "Rota não encontrada"})
+
+
+def test_id_na_rota_maior_que_o_sqlite_404(ctx):
+    cliente, _, _ = ctx
+    grande = 10**20
+    r = cliente.patch(f"/api/colaboradores/{grande}", json={})
+    assert resposta(r) == (404, {"erro": "Colaborador não encontrado"})
+    for metodo, rota in [("PATCH", f"/api/registros/{grande}"), ("DELETE", f"/api/registros/{grande}"),
+                         ("POST", f"/api/registros/{grande}/erro"), ("DELETE", f"/api/registros/{grande}/erro")]:
+        r = cliente.open(rota, method=metodo, json={})
+        assert resposta(r) == (404, {"erro": "Registro não encontrado"}), (metodo, rota)
+
+
+def test_metodo_errado_405_json(ctx):
+    cliente, _, _ = ctx
+    r = cliente.get("/api/calibracao")
+    assert resposta(r) == (405, {"erro": "Método não permitido"})
+    assert "POST" in r.headers["Allow"]
+
+
+def test_excecao_inesperada_500_json_e_log(ctx, monkeypatch, caplog):
+    cliente, _, repo = ctx
+
+    def quebra(*args, **kwargs):
+        raise RuntimeError("disco cheio")
+
+    monkeypatch.setattr(repo, "ultimos", quebra)
+    with caplog.at_level(logging.ERROR, logger="bip.web"):
+        r = cliente.get("/api/registros/ultimos")
+    assert resposta(r) == (500, {"erro": "Erro interno do Bip"})
+    erros = [rec for rec in caplog.records if rec.levelno == logging.ERROR and rec.name == "bip.web"]
+    assert erros and erros[0].exc_info[0] is RuntimeError
+
+
+def test_guarda_vem_antes_dos_erros_json(ctx):
+    cliente, _, _ = ctx
+    assert resposta(cliente.get("/api/nada", headers={"Host": "evil.example"})) == (403, {"erro": "Host não permitido"})
+    r = cliente.post("/api/nada", data="[]", content_type="text/plain")
+    assert resposta(r) == (415, {"erro": "Envie application/json"})

@@ -118,6 +118,11 @@ def test_historico_preservado_ao_desativar(repo):
     assert repo.buscar("999882543964725")[0]["colaborador_nome"] == "Ana"
 
 
+def test_id_maior_que_o_sqlite_nao_existe(repo):
+    assert repo.obter_colaborador(10**20) is None
+    assert repo.obter_registro(10**20) is None
+
+
 def test_config(repo):
     assert repo.get_config("x") is None
     assert repo.get_config("x", "p") == "p"

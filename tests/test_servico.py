@@ -1,3 +1,4 @@
+import threading
 from datetime import datetime
 
 import pytest
@@ -90,6 +91,44 @@ def test_definir_ativo_inativo_falha():
         s.definir_ativo(ana["id"])
     with pytest.raises(ValueError):
         s.definir_ativo(999)
+
+
+def test_ativo_desativado_no_config_vira_sem_colaborador():
+    repo, s = novo_servico()
+    ana = repo.criar_colaborador("Ana")
+    repo.atualizar_colaborador(ana["id"], ativo=False)
+    repo.set_config("colaborador_ativo", str(ana["id"]))
+    ev = bip(s)
+    assert ev["tipo"] == "sem_colaborador"
+    assert ev["registro"]["colaborador_id"] is None
+
+
+def espera_lock(s, funcao) -> bool:
+    """True se funcao ficou parada enquanto o lock do Servico estava ocupado."""
+    with s._lock:
+        t = threading.Thread(target=funcao, daemon=True)
+        t.start()
+        t.join(0.2)
+        esperou = t.is_alive()
+    t.join(2)
+    assert not t.is_alive()
+    return esperou
+
+
+def test_definir_ativo_usa_lock():
+    repo, s = novo_servico()
+    ana = repo.criar_colaborador("Ana")
+    assert espera_lock(s, lambda: s.definir_ativo(ana["id"]))
+    assert s.ativo()["nome"] == "Ana"
+
+
+def test_desativar_colaborador_usa_lock():
+    repo, s = novo_servico()
+    ana = repo.criar_colaborador("Ana")
+    s.definir_ativo(ana["id"])
+    assert espera_lock(s, lambda: s.desativar_colaborador(ana["id"]))
+    assert s.ativo() is None
+    assert repo.obter_colaborador(ana["id"])["ativo"] is False
 
 
 def test_definir_ativo_none():

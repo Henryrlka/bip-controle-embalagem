@@ -7,6 +7,7 @@ from datetime import datetime
 CORES = ["#2563EB", "#16A34A", "#EA580C", "#9333EA", "#DB2777", "#0891B2", "#CA8A04", "#92400E"]
 SONS = [440, 554, 659, 784, 880, 988, 1175, 1319]
 SEM_COLABORADOR_COR = "#DC2626"
+MAX_ID = 2**63 - 1  # maior INTEGER do SQLite; acima disso ele dá OverflowError
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS colaboradores (
@@ -106,6 +107,8 @@ class Repo:
         return self.obter_colaborador(id)
 
     def obter_colaborador(self, id: int) -> dict | None:
+        if abs(id) > MAX_ID:
+            return None
         rows = self._q("SELECT * FROM colaboradores WHERE id = ?", (id,))
         return _colaborador(rows[0]) if rows else None
 
@@ -117,6 +120,8 @@ class Repo:
     # Registros
 
     def obter_registro(self, id: int) -> dict | None:
+        if abs(id) > MAX_ID:
+            return None
         rows = self._q(SELECT_REGISTRO + "WHERE r.id = ?", (id,))
         return _registro(rows[0]) if rows else None
 
