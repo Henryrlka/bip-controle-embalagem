@@ -1,6 +1,7 @@
 """Escuta global do teclado: o leitor digita no UpSeller e o programa também recebe as teclas."""
 
 import logging
+import os
 import time
 
 from pynput import keyboard
@@ -13,6 +14,9 @@ MODIFICADORES = {Key.shift, Key.shift_r, Key.shift_l, Key.ctrl_l, Key.ctrl_r, Ke
                  Key.alt_gr, Key.caps_lock}
 VK_NUMPAD_0 = 96
 VK_NUMPAD_9 = 105
+LLKHF_INJECTED = 0x10
+# Só para testes neste PC: aceita teclas simuladas (SendKeys). Nunca ligar no pavilhão.
+ACEITAR_SIMULADO = os.environ.get("BIP_ACEITAR_SIMULADO") == "1"
 
 log = logging.getLogger(__name__)
 
@@ -30,6 +34,12 @@ def token_de(key) -> str:
     return "OUTRA"
 
 
+def aceitar_evento(flags: int, aceitar_simulado: bool) -> bool:
+    # Leitor USB é hardware: nunca vem marcado como injetado. Auto-digitação de
+    # gerenciador de senha vem, e não pode virar "bip".
+    return aceitar_simulado or not flags & LLKHF_INJECTED
+
+
 def iniciar_escuta(servico: Servico) -> keyboard.Listener:
     detector = ScanDetector(servico.limiar_ms())
 
@@ -38,12 +48,14 @@ def iniciar_escuta(servico: Servico) -> keyboard.Listener:
             detector.limiar_ms = servico.limiar_ms()
             scan = detector.alimentar(token_de(key), time.perf_counter() * 1000)
             if scan is not None:
-                evento = servico.processar_scan(scan)
-                log.info("bip %s -> %s", scan.codigo, evento["mensagem"])
+                log.info("bip %s", servico.processar_scan(scan)["tipo"])
         except Exception:
             log.exception("Erro ao processar tecla")
 
-    listener = keyboard.Listener(on_press=on_press)
+    def filtro(msg, data) -> bool:
+        return aceitar_evento(data.flags, ACEITAR_SIMULADO)
+
+    listener = keyboard.Listener(on_press=on_press, win32_event_filter=filtro)
     listener.daemon = True
     listener.start()
     return listener
